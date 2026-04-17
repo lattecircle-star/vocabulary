@@ -523,3 +523,4 @@
 
       const retryBtn = document.getElementById("retryWrongBtn");
       retryBtn.disabled = wrongQuestions.length =
+        
