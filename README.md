@@ -15,6 +15,7 @@
       --primary-dark:#1d4ed8;
       --green:#16a34a;
       --orange:#ea580c;
+      --purple:#7c3aed;
       --gray:#64748b;
       --good:#15803d;
       --bad:#b91c1c;
@@ -24,7 +25,7 @@
 
     body{
       margin:0;
-      font-family:"Noto Sans TC", "Microsoft JhengHei", Arial, sans-serif;
+      font-family:"Noto Sans TC","Microsoft JhengHei",Arial,sans-serif;
       background:linear-gradient(180deg,#eef4ff 0%,#f8fbff 100%);
       color:var(--text);
     }
@@ -44,9 +45,7 @@
       margin:18px 0;
     }
 
-    h1,h2,h3,p{
-      margin-top:0;
-    }
+    h1,h2,h3,p{ margin-top:0; }
 
     .title{
       display:flex;
@@ -110,9 +109,15 @@
       filter:brightness(.97);
     }
 
+    button:disabled{
+      opacity:.55;
+      cursor:not-allowed;
+    }
+
     .btn-gray{ background:var(--gray); }
     .btn-green{ background:var(--green); }
     .btn-orange{ background:var(--orange); }
+    .btn-purple{ background:var(--purple); }
 
     .pill{
       display:inline-block;
@@ -125,9 +130,7 @@
       margin-top:10px;
     }
 
-    .hidden{
-      display:none;
-    }
+    .hidden{ display:none; }
 
     .review-grid{
       display:grid;
@@ -255,14 +258,22 @@
       margin-top:8px;
     }
 
+    .status-box{
+      margin-top:12px;
+      padding:12px 14px;
+      border-radius:12px;
+      background:#f5f3ff;
+      border:1px solid #ddd6fe;
+      color:#5b21b6;
+      font-weight:700;
+    }
+
     @media (max-width: 700px){
       .wrap{ padding:14px; }
       .card{ padding:16px; border-radius:16px; }
       h1{ font-size:24px; }
       .question-title{ font-size:18px; }
-      button{
-        width:100%;
-      }
+      button{ width:100%; }
       .buttons{
         display:grid;
         grid-template-columns:1fr;
@@ -276,7 +287,7 @@
       <div class="title">
         <div>
           <h1>國中英語 U4 單字配對練習</h1>
-          <p class="subtitle">每次 10 題、隨機出題、可重複練習，先複習再作答。</p>
+          <p class="subtitle">每次 10 題、隨機出題、可重複練習，也可只重練錯題。</p>
           <div class="pill" id="currentInfo">目前範圍：第 1 部分（1-19）｜模式：英文選中文</div>
         </div>
       </div>
@@ -317,11 +328,16 @@
         <h2>單字測驗</h2>
         <div class="progress" id="progressText">共 10 題</div>
       </div>
+
+      <div id="statusBox" class="status-box hidden"></div>
       <form id="quizForm"></form>
+
       <div class="buttons">
         <button type="button" onclick="submitQuiz()">送出答案</button>
         <button type="button" class="btn-orange" onclick="startQuiz()">再練一次</button>
+        <button type="button" class="btn-purple" id="retryWrongBtn" onclick="retryWrongQuestions()" disabled>錯題再練一次</button>
       </div>
+
       <div id="resultSection" class="result hidden"></div>
     </section>
   </div>
@@ -369,6 +385,8 @@
     ];
 
     let currentQuestions = [];
+    let wrongQuestions = [];
+    let quizSourceType = "normal";
 
     function shuffle(array) {
       const arr = [...array];
@@ -441,16 +459,27 @@
       `;
     }
 
-    function startQuiz() {
+    function renderQuiz(questionSet, sourceType = "normal") {
       const selectedWords = getSelectedGroupWords();
       const mode = document.getElementById("modeSelect").value;
-      currentQuestions = shuffle(selectedWords).slice(0, 10);
+      currentQuestions = shuffle(questionSet);
+      quizSourceType = sourceType;
 
       document.getElementById("quizForm").innerHTML = currentQuestions
         .map((word, index) => buildQuestion(word, index, selectedWords, mode))
         .join("");
 
       document.getElementById("progressText").textContent = `共 ${currentQuestions.length} 題`;
+
+      const statusBox = document.getElementById("statusBox");
+      if (sourceType === "wrong") {
+        statusBox.textContent = `目前是錯題重練，共 ${currentQuestions.length} 題。`;
+        statusBox.classList.remove("hidden");
+      } else {
+        statusBox.classList.add("hidden");
+        statusBox.textContent = "";
+      }
+
       document.getElementById("resultSection").classList.add("hidden");
       document.getElementById("resultSection").innerHTML = "";
       document.getElementById("quizSection").classList.remove("hidden");
@@ -458,11 +487,18 @@
       window.scrollTo({ top: document.getElementById("quizSection").offsetTop - 20, behavior: "smooth" });
     }
 
+    function startQuiz() {
+      const selectedWords = getSelectedGroupWords();
+      const questionSet = shuffle(selectedWords).slice(0, 10);
+      renderQuiz(questionSet, "normal");
+    }
+
     function submitQuiz() {
       const mode = document.getElementById("modeSelect").value;
       const isEnToZh = mode === "en2zh";
       let score = 0;
       let resultHtml = "";
+      wrongQuestions = [];
 
       currentQuestions.forEach((word, index) => {
         const selected = document.querySelector(`input[name="q${index}"]:checked`);
@@ -471,7 +507,11 @@
         const ask = isEnToZh ? word.en : word.zh;
         const isCorrect = userAnswer === correct;
 
-        if (isCorrect) score++;
+        if (isCorrect) {
+          score++;
+        } else {
+          wrongQuestions.push(word);
+        }
 
         resultHtml += `
           <div class="result-item">
@@ -481,27 +521,5 @@
         `;
       });
 
-      const resultSection = document.getElementById("resultSection");
-      resultSection.innerHTML = `
-        <div class="score">分數：${score} / 10</div>
-        ${resultHtml}
-        <div class="footer-note">按「再練一次」可重新隨機產生新的 10 題。</div>
-      `;
-      resultSection.classList.remove("hidden");
-
-      window.scrollTo({ top: resultSection.offsetTop - 20, behavior: "smooth" });
-    }
-
-    function escapeHtml(text) {
-      return text
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-    }
-
-    updateInfo();
-  </script>
-</body>
-</html>
+      const retryBtn = document.getElementById("retryWrongBtn");
+      retryBtn.disabled = wrongQuestions.length =
